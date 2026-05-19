@@ -167,6 +167,13 @@ class TimeTrackerApp(qw.QWidget):
             self.project_input.addItem(
                 f"{project['name']} ({project['project_name']})", project['name']
             )
+
+        last_project = time_tracker.config.get("last_project")
+        if last_project:
+            idx = self.project_input.findData(last_project)
+            if idx >= 0:
+                self.project_input.setCurrentIndex(idx)
+
         logger.debug("Loaded %d projects", len(projects))
 
     # ---- settings ----
@@ -362,6 +369,9 @@ class TimeTrackerApp(qw.QWidget):
         data = dialog.get_data()
         if not data:
             return
+
+        time_tracker.config["last_project"] = project_id
+        time_tracker.save_config(time_tracker.config)
 
         activity = Activity(
             session_id=self.session_id,
