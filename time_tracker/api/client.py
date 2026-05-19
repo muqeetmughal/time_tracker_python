@@ -26,14 +26,14 @@ class FrappeAPI:
         return data.get('data', [])
 
     def tasks(self, project):
-        url = f"{self.base_url}/api/resource/Task?fields=[\"name\", \"subject\"]&filters=[[\"project\", \"=\", \"{project}\"]]"
+        url = f"{self.base_url}/api/resource/Task?fields=[\"name\", \"subject\"]&filters=[[\"project\", \"=\", \"{project}\"], [\"status\", \"=\", \"Open\"]]"
         response = requests.get(url, headers=self._get_headers())
         response.raise_for_status()
         data = response.json()
         return data.get('data', [])
 
     def activity_types(self):
-        url = f"{self.base_url}/api/resource/Activity Type?fields=[\"name\"]"
+        url = f"{self.base_url}/api/resource/Activity Type?fields=[\"name\"]&filters=[[\"disabled\", \"=\", 0]]"
         response = requests.get(url, headers=self._get_headers())
         response.raise_for_status()
         data = response.json()
