@@ -3,6 +3,7 @@ from PyQt6 import QtWidgets as qw
 import time_tracker
 from time_tracker.api.client import FrappeAPI
 from time_tracker.tracking.camshot import list_cameras
+from time_tracker.tracking.screenshot import list_displays
 from time_tracker.utils.logger import logger
 
 
@@ -121,7 +122,8 @@ class SettingsDialog(qw.QDialog):
         layout = qw.QVBoxLayout()
         self._add_checkbox(layout, "Count Keyboard Hits", "trackingSources", "countKeyboardHits")
         self._add_checkbox(layout, "Count Mouse Clicks", "trackingSources", "countMouseClicks")
-        self._add_combobox(layout, "Screenshots From", "trackingSources", "screenshotsFrom", ["primary", "secondary"])
+        display_items = [f"{d['name']} (Display {d['index']})" for d in list_displays()]
+        self._add_combobox(layout, "Screenshots From", "trackingSources", "screenshotsFrom", display_items)
 
         row = qw.QHBoxLayout()
         row.addWidget(qw.QLabel("Camera"))

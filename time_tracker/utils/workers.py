@@ -16,13 +16,14 @@ def mock_upload_activity(activity):
 class ScreenshotWorker(QThread):
     finished = pyqtSignal(str)
 
-    def __init__(self, activity_id):
+    def __init__(self, activity_id, display=None):
         super().__init__()
         self.activity_id = activity_id
+        self.display = display
 
     def run(self):
         try:
-            path = capture_screenshot(self.activity_id)
+            path = capture_screenshot(self.activity_id, display=self.display)
             self.finished.emit(path)
         except Exception as e:
             logger.error("ScreenshotWorker error: %s", e)

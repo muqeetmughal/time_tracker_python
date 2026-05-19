@@ -1,5 +1,6 @@
 import os
 import random
+import re
 from datetime import timezone
 import uuid
 
@@ -524,7 +525,13 @@ class TimeTrackerApp(qw.QWidget):
         activity = self.active_activity
 
         if take_screenshots:
-            self._screenshot_worker = ScreenshotWorker(activity.id)
+            display_str = self._cfg("config", "trackingSources", "screenshotsFrom", default="")
+            display_num = None
+            if display_str:
+                m = re.search(r"Display (\d+)", display_str)
+                if m:
+                    display_num = int(m.group(1))
+            self._screenshot_worker = ScreenshotWorker(activity.id, display=display_num)
             self._screenshot_worker.finished.connect(self._on_screenshot_done)
             self._screenshot_worker.finished.connect(self._screenshot_worker.deleteLater)
             self._screenshot_worker.start()
