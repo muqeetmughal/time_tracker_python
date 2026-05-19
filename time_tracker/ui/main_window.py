@@ -12,6 +12,7 @@ import time_tracker
 from time_tracker.database import SessionLocal
 from time_tracker.models import Activity, ActivityMedia, ActivityInput, utc_now
 from time_tracker.tracking.input_monitor import InputMonitor
+from time_tracker.api.client import FrappeAPI
 from time_tracker.ui.activity_dialog import ActivityDialog
 from time_tracker.ui.settings_dialog import SettingsDialog
 from time_tracker.utils.workers import (
@@ -89,6 +90,13 @@ class TimeTrackerApp(qw.QWidget):
         self.settings_btn.clicked.connect(self._open_settings)
         header.addWidget(self.settings_btn)
 
+        self.logout_btn = qw.QPushButton()
+        self.logout_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton))
+        self.logout_btn.setFixedWidth(36)
+        self.logout_btn.setToolTip("Logout (clear API credentials)")
+        self.logout_btn.clicked.connect(self._logout)
+        header.addWidget(self.logout_btn)
+
         layout.addLayout(header)
 
         # ---- project row ----
@@ -164,6 +172,25 @@ class TimeTrackerApp(qw.QWidget):
         dialog = SettingsDialog(self)
         dialog.exec()
         self._refresh_projects_async()
+
+    def _logout(self):
+        reply = qw.QMessageBox.question(
+            self, "Logout",
+            "Clear API credentials and disconnect from ERPNext?",
+            qw.QMessageBox.StandardButton.Yes | qw.QMessageBox.StandardButton.No,
+        )
+        if reply != qw.QMessageBox.StandardButton.Yes:
+            return
+
+        time_tracker.config.setdefault("credentials", {})
+        time_tracker.config["credentials"]["apiKey"] = ""
+        time_tracker.config["credentials"]["apiSecret"] = ""
+        time_tracker.save_config(time_tracker.config)
+
+        time_tracker.erpnext = FrappeAPI()
+
+        qw.QMessageBox.information(self, "Logged Out", "API credentials cleared. Reconnect via Settings.")
+        logger.info("Logged out — API credentials cleared")
 
     def closeEvent(self, event):
         logger.info("Shutting down")
@@ -529,7 +556,7 @@ class TimeTrackerApp(qw.QWidget):
             media_list = (
                 self.db.query(ActivityMedia)
                 .join(Activity, ActivityMedia.activity_id == Activity.id)
-                .filter(Activity.session_id == self.session_id)
+                .filter(Activity.sync_status != "synced")
                 .order_by(ActivityMedia.created_at.desc())
                 .all()
             )
@@ -602,7 +629,7 @@ class TimeTrackerApp(qw.QWidget):
         try:
             activities = (
                 self.db.query(Activity)
-                .filter(Activity.session_id == self.session_id)
+                .filter(Activity.sync_status != "synced")
                 .order_by(Activity.start_time.asc())
                 .all()
             )
