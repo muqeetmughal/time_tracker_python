@@ -1,0 +1,36 @@
+{
+  "credentials": {
+    "siteUrl": "http://localhost:8001",
+    "apiKey": "0f64b5169a25d81",
+    "apiSecret": "f1e4cce67436bf2"
+  },
+  "config": {
+    "general": {
+      "trackingIntervalMinutes": 1,
+      "activityUpdateIntervalMinutes": 1,
+      "idleTimeoutMinutes": 1,
+      "takeScreenshots": true,
+      "takeCamshots": true,
+      "resumeTrackingAfterIdle": true,
+      "reviewImagesBeforeUpload": true
+    },
+    "advanced": {
+      "screenshotReviewSeconds": 10,
+      "randomizedTracking": true,
+      "activityAutoComplete": true,
+      "askActivityUpdate": true
+    },
+    "trackingSources": {
+      "countKeyboardHits": true,
+      "countMouseClicks": true,
+      "screenshotsFrom": "primary",
+      "cameraId": "",
+      "cameraName": ""
+    },
+    "other": {
+      "playSounds": true,
+      "showDockIcon": true,
+      "openAtLogin": false
+    }
+  }
+}
