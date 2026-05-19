@@ -1,6 +1,7 @@
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from time_tracker.tracking.screenshot import capture as capture_screenshot
+from time_tracker.tracking.camshot import capture as capture_camshot, list_cameras
 from time_tracker.database import SessionLocal
 from time_tracker.models import Activity
 from time_tracker.utils.logger import logger
@@ -80,3 +81,20 @@ class UploadWorker(QThread):
             db.close()
 
         self.finished.emit(synced_count)
+
+
+class CamshotWorker(QThread):
+    finished = pyqtSignal(str)
+
+    def __init__(self, activity_id, camera_index):
+        super().__init__()
+        self.activity_id = activity_id
+        self.camera_index = camera_index
+
+    def run(self):
+        try:
+            path = capture_camshot(self.camera_index)
+            self.finished.emit(path)
+        except Exception as e:
+            logger.error("CamshotWorker error: %s", e)
+            self.finished.emit(None)

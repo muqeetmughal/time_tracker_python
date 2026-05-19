@@ -17,6 +17,7 @@ from time_tracker.ui.activity_dialog import ActivityDialog
 from time_tracker.ui.settings_dialog import SettingsDialog
 from time_tracker.utils.workers import (
     ScreenshotWorker,
+    CamshotWorker,
     ApiWorker,
     UploadWorker,
     mock_upload_activity,
@@ -38,6 +39,7 @@ class TimeTrackerApp(qw.QWidget):
         self._update_dialog_open = False
         self._paused = False
         self._screenshot_worker = None
+        self._camshot_worker = None
         self._api_workers = []
 
         self.timer = QTimer()
@@ -468,44 +470,22 @@ class TimeTrackerApp(qw.QWidget):
         self.db.add(inp)
         self._last_input_save = now
 
-    # ---- screenshot (async) ----
+    # ---- screenshot / camshot (async) ----
 
-    def _on_screenshot_timer(self):
-        if not self.active_activity or self._paused:
-            self._schedule_screenshot()
-            return
-        cfg = self._cfg("config", "general", default={})
-        if not cfg.get("takeScreenshots"):
-            self._schedule_screenshot()
-            return
-
-        self._save_input_counts()
-        self.db.commit()
-
-        activity = self.active_activity
-
-        self._screenshot_worker = ScreenshotWorker(activity.id)
-        self._screenshot_worker.finished.connect(self._on_screenshot_done)
-        self._screenshot_worker.finished.connect(self._screenshot_worker.deleteLater)
-        self._screenshot_worker.start()
-
-    def _on_screenshot_done(self, path):
+    def _store_media(self, path, media_type):
         if not path or not self.active_activity:
-            self._schedule_screenshot()
             return
-
-        self.active_activity.screenshots_count = (self.active_activity.screenshots_count or 0) + 1
 
         file_data = None
         try:
             with open(path, "rb") as f:
                 file_data = f.read()
         except Exception as e:
-            logger.warning("Failed to read screenshot file: %s", e)
+            logger.warning("Failed to read media file: %s", e)
 
         media = ActivityMedia(
             activity_id=self.active_activity.id,
-            media_type="screenshot",
+            media_type=media_type,
             filename=os.path.basename(path),
             file_data=file_data,
             file_size=len(file_data) if file_data else 0,
@@ -515,11 +495,57 @@ class TimeTrackerApp(qw.QWidget):
         self.db.add(media)
         self.db.commit()
 
+        if media_type == "screenshot":
+            self.active_activity.screenshots_count = (self.active_activity.screenshots_count or 0) + 1
+        elif media_type == "camshot":
+            self.active_activity.camshots_count = (self.active_activity.camshots_count or 0) + 1
+
+        self.db.commit()
         self._load_activities()
         self._load_screenshots()
-        logger.debug("Screenshot captured: %s (media_id=%s)", path, media.id)
+        logger.debug("%s captured: %s (media_id=%s)", media_type, path, media.id)
 
+    def _on_screenshot_timer(self):
+        if not self.active_activity or self._paused:
+            self._schedule_screenshot()
+            return
+
+        cfg = self._cfg("config", "general", default={})
+        take_screenshots = cfg.get("takeScreenshots", False)
+        take_camshots = cfg.get("takeCamshots", False)
+
+        if not take_screenshots and not take_camshots:
+            self._schedule_screenshot()
+            return
+
+        self._save_input_counts()
+        self.db.commit()
+
+        activity = self.active_activity
+
+        if take_screenshots:
+            self._screenshot_worker = ScreenshotWorker(activity.id)
+            self._screenshot_worker.finished.connect(self._on_screenshot_done)
+            self._screenshot_worker.finished.connect(self._screenshot_worker.deleteLater)
+            self._screenshot_worker.start()
+
+        if take_camshots:
+            cam_idx = self._cfg("config", "trackingSources", "cameraId", default=None)
+            if cam_idx is not None and cam_idx != "":
+                self._camshot_worker = CamshotWorker(activity.id, int(cam_idx))
+                self._camshot_worker.finished.connect(self._on_camshot_done)
+                self._camshot_worker.finished.connect(self._camshot_worker.deleteLater)
+                self._camshot_worker.start()
+
+    def _on_screenshot_done(self, path):
+        self._store_media(path, "screenshot")
         self._schedule_screenshot()
+
+    def _on_camshot_done(self, path):
+        self._store_media(path, "camshot")
+        cfg = self._cfg("config", "general", default={})
+        if not cfg.get("takeScreenshots", False):
+            self._schedule_screenshot()
 
     # ---- screenshots toggle ----
 

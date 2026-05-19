@@ -2,6 +2,7 @@ from PyQt6 import QtWidgets as qw
 
 import time_tracker
 from time_tracker.api.client import FrappeAPI
+from time_tracker.tracking.camshot import list_cameras
 from time_tracker.utils.logger import logger
 
 
@@ -121,8 +122,23 @@ class SettingsDialog(qw.QDialog):
         self._add_checkbox(layout, "Count Keyboard Hits", "trackingSources", "countKeyboardHits")
         self._add_checkbox(layout, "Count Mouse Clicks", "trackingSources", "countMouseClicks")
         self._add_combobox(layout, "Screenshots From", "trackingSources", "screenshotsFrom", ["primary", "secondary"])
-        self._add_lineedit(layout, "Camera ID", "trackingSources", "cameraId")
-        self._add_lineedit(layout, "Camera Name", "trackingSources", "cameraName")
+
+        row = qw.QHBoxLayout()
+        row.addWidget(qw.QLabel("Camera"))
+        self.camera_combo = qw.QComboBox()
+        saved_index = time_tracker.config.get("config", {}).get("trackingSources", {}).get("cameraId", "")
+        saved_name = time_tracker.config.get("config", {}).get("trackingSources", {}).get("cameraName", "")
+        self.camera_combo.addItem("-- No Camera --", None)
+        for cam in list_cameras():
+            self.camera_combo.addItem(cam["name"], cam["index"])
+        select_idx = self.camera_combo.findData(saved_index if saved_index != "" else None)
+        if select_idx < 0:
+            select_idx = self.camera_combo.findText(saved_name)
+        if select_idx >= 0:
+            self.camera_combo.setCurrentIndex(select_idx)
+        row.addWidget(self.camera_combo)
+        layout.addLayout(row)
+
         layout.addStretch()
         tab.setLayout(layout)
         self.tabs.addTab(tab, "Tracking Sources")
@@ -147,7 +163,7 @@ class SettingsDialog(qw.QDialog):
         sections = {
             "general": ["trackingIntervalMinutes", "activityUpdateIntervalMinutes", "idleTimeoutMinutes", "takeScreenshots", "takeCamshots", "resumeTrackingAfterIdle", "reviewImagesBeforeUpload"],
             "advanced": ["screenshotReviewSeconds", "randomizedTracking", "activityAutoComplete", "askActivityUpdate"],
-            "trackingSources": ["countKeyboardHits", "countMouseClicks", "screenshotsFrom", "cameraId", "cameraName"],
+            "trackingSources": ["countKeyboardHits", "countMouseClicks", "screenshotsFrom"],
             "other": ["playSounds", "showDockIcon", "openAtLogin"],
         }
 
@@ -167,6 +183,12 @@ class SettingsDialog(qw.QDialog):
                     time_tracker.config.setdefault("config", {}).setdefault(section, {})[field] = wid.text().strip()
                 elif isinstance(wid, qw.QComboBox):
                     time_tracker.config.setdefault("config", {}).setdefault(section, {})[field] = wid.currentText()
+
+        idx = self.camera_combo.currentData()
+        name = self.camera_combo.currentText()
+        src = time_tracker.config.setdefault("config", {}).setdefault("trackingSources", {})
+        src["cameraId"] = str(idx) if idx is not None else ""
+        src["cameraName"] = name if idx is not None else ""
 
         time_tracker.save_config(time_tracker.config)
         time_tracker.erpnext = FrappeAPI(time_tracker.config)
