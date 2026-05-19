@@ -54,7 +54,7 @@ class ActivityDialog(qw.QDialog):
         buttons = qw.QHBoxLayout()
         submit_btn = qw.QPushButton("Update" if current_data else "Start")
         cancel_btn = qw.QPushButton("Cancel")
-        submit_btn.clicked.connect(self.accept)
+        submit_btn.clicked.connect(self._on_submit)
         cancel_btn.clicked.connect(self.reject)
         buttons.addStretch()
         buttons.addWidget(submit_btn)
@@ -85,11 +85,15 @@ class ActivityDialog(qw.QDialog):
         if data.get("description"):
             self.description_input.setPlainText(data["description"])
 
-    def get_data(self):
+    def _on_submit(self):
         description = self.description_input.toPlainText().strip()
         if not description:
             qw.QMessageBox.warning(self, "Missing Description", "Activity description is required.")
-            return None
+            return
+        self.accept()
+
+    def get_data(self):
+        description = self.description_input.toPlainText().strip()
         return {
             "activity_type": self.activity_type_input.currentText().strip() or None,
             "task_id": self.task_input.currentData(),
