@@ -13,7 +13,12 @@ from time_tracker.models import Activity, ActivityMedia, ActivityInput, utc_now
 from time_tracker.tracking.input_monitor import InputMonitor
 from time_tracker.ui.activity_dialog import ActivityDialog
 from time_tracker.ui.settings_dialog import SettingsDialog
-from time_tracker.utils.workers import ScreenshotWorker, ApiWorker
+from time_tracker.utils.workers import (
+    ScreenshotWorker,
+    ApiWorker,
+    UploadWorker,
+    mock_upload_activity,
+)
 from time_tracker.utils.logger import logger
 
 
@@ -41,6 +46,9 @@ class TimeTrackerApp(qw.QWidget):
 
         self.activity_update_timer = QTimer()
         self.activity_update_timer.timeout.connect(self._on_activity_update_timer)
+
+        self.sync_timer = QTimer()
+        self.sync_timer.timeout.connect(self._on_sync_timer)
 
         self.input_monitor = InputMonitor()
 
@@ -96,20 +104,29 @@ class TimeTrackerApp(qw.QWidget):
 
         # ---- activities table ----
         self.table = qw.QTableWidget()
-        self.table.setColumnCount(10)
+        self.table.setColumnCount(11)
         self.table.setHorizontalHeaderLabels([
             "Description", "Activity Type", "Project", "Task",
-            "Start", "End", "Duration", "Screenshots", "Keys", "Status"
+            "Start", "End", "Duration", "Screenshots", "Keys", "Status", "Sync"
         ])
         layout.addWidget(self.table, 3)
 
-        # ---- screenshots section ----
-        layout.addWidget(qw.QLabel("Screenshots"))
+        # ---- screenshots section (hidden by default) ----
+        self.shot_toggle_btn = qw.QPushButton("Show Screenshots")
+        self.shot_toggle_btn.setCheckable(True)
+        self.shot_toggle_btn.toggled.connect(self._toggle_screenshots)
+        layout.addWidget(self.shot_toggle_btn)
+
+        self.shot_label = qw.QLabel("Screenshots")
         self.shot_table = qw.QTableWidget()
         self.shot_table.setColumnCount(4)
         self.shot_table.setHorizontalHeaderLabels(["Preview", "Filename", "Size", "Status"])
         self.shot_table.setEditTriggers(qw.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.shot_table.verticalHeader().setDefaultSectionSize(THUMB_SIZE + 8)
+
+        self.shot_label.setVisible(False)
+        self.shot_table.setVisible(False)
+        layout.addWidget(self.shot_label)
         layout.addWidget(self.shot_table, 2)
 
         self.setLayout(layout)
@@ -155,7 +172,9 @@ class TimeTrackerApp(qw.QWidget):
         val = time_tracker.config
         for k in keys:
             if isinstance(val, dict):
-                val = val.get(k, {})
+                val = val.get(k)
+                if val is None:
+                    return default
             else:
                 return default
         return val if val is not None else default
@@ -170,6 +189,7 @@ class TimeTrackerApp(qw.QWidget):
         self.timer.start(1000)
         self._schedule_screenshot()
         self._schedule_activity_update()
+        self._schedule_sync()
 
         cfg = self._cfg("config", "trackingSources", default={})
         if cfg.get("countKeyboardHits") or cfg.get("countMouseClicks"):
@@ -186,10 +206,15 @@ class TimeTrackerApp(qw.QWidget):
         ms = self._interval_ms("config", "general", "activityUpdateIntervalMinutes")
         self.activity_update_timer.start(ms)
 
+    def _schedule_sync(self):
+        ms = self._interval_ms("config", "general", "syncIntervalMinutes", fallback_ms=60000)
+        self.sync_timer.start(ms)
+
     def _stop_timers(self):
         self.timer.stop()
         self.screenshot_timer.stop()
         self.activity_update_timer.stop()
+        self.sync_timer.stop()
         self.input_monitor.stop()
         logger.info("Tracking timers stopped")
 
@@ -381,6 +406,7 @@ class TimeTrackerApp(qw.QWidget):
         self.timer_label.setText("00:00:00")
         self._load_activities()
         self._update_ui_state()
+        QTimer.singleShot(1000, self._on_sync_timer)
 
     def _save_input_counts(self):
         activity = self.active_activity
@@ -459,12 +485,42 @@ class TimeTrackerApp(qw.QWidget):
 
         self._schedule_screenshot()
 
+    # ---- screenshots toggle ----
+
+    def _toggle_screenshots(self, checked):
+        visible = checked
+        self.shot_label.setVisible(visible)
+        self.shot_table.setVisible(visible)
+        self.shot_toggle_btn.setText("Hide Screenshots" if checked else "Show Screenshots")
+        if visible:
+            self._load_screenshots()
+
+    # ---- sync (upload to ERPNext) ----
+
+    def _on_sync_timer(self):
+        if self.active_activity:
+            self._schedule_sync()
+            return
+
+        self._sync_worker = UploadWorker(upload_fn=mock_upload_activity)
+        self._sync_worker.finished.connect(self._on_sync_done)
+        self._sync_worker.finished.connect(self._sync_worker.deleteLater)
+        self._sync_worker.start()
+
+    def _on_sync_done(self, synced_count):
+        if synced_count > 0:
+            logger.info("Synced %d activities", synced_count)
+            self._load_activities()
+        self._schedule_sync()
+
     # ---- screenshots grid ----
 
     def _load_screenshots(self):
         try:
             media_list = (
                 self.db.query(ActivityMedia)
+                .join(Activity, ActivityMedia.activity_id == Activity.id)
+                .filter(Activity.session_id == self.session_id)
                 .order_by(ActivityMedia.created_at.desc())
                 .all()
             )
@@ -557,6 +613,7 @@ class TimeTrackerApp(qw.QWidget):
                     str(activity.screenshots_count),
                     str(activity.keyboard_count),
                     activity.status,
+                    activity.sync_status,
                 ]
                 for col, value in enumerate(values):
                     self.table.setItem(row, col, qw.QTableWidgetItem(value))
