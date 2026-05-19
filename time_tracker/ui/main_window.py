@@ -5,7 +5,8 @@ import uuid
 
 from PyQt6 import QtWidgets as qw
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap, QColor
+from PyQt6.QtGui import QPixmap, QColor, QIcon
+from PyQt6.QtWidgets import QStyle
 
 import time_tracker
 from time_tracker.database import SessionLocal
@@ -81,7 +82,8 @@ class TimeTrackerApp(qw.QWidget):
         self.timer_label.setStyleSheet("font-size: 20px; font-weight: bold; color: gray;")
         header.addWidget(self.timer_label)
 
-        self.settings_btn = qw.QPushButton("\u2699")
+        self.settings_btn = qw.QPushButton()
+        self.settings_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
         self.settings_btn.setFixedWidth(36)
         self.settings_btn.setToolTip("Settings")
         self.settings_btn.clicked.connect(self._open_settings)
@@ -97,7 +99,8 @@ class TimeTrackerApp(qw.QWidget):
         project_row.addWidget(qw.QLabel("Project"))
         project_row.addWidget(self.project_input, 1)
 
-        self.toggle_btn = qw.QPushButton("Start Tracking")
+        self.toggle_btn = qw.QPushButton(" Start Tracking")
+        self.toggle_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
         self.toggle_btn.clicked.connect(self._toggle_tracking)
         project_row.addWidget(self.toggle_btn)
         layout.addLayout(project_row)
@@ -112,7 +115,8 @@ class TimeTrackerApp(qw.QWidget):
         layout.addWidget(self.table, 3)
 
         # ---- screenshots section (hidden by default) ----
-        self.shot_toggle_btn = qw.QPushButton("Show Screenshots")
+        self.shot_toggle_btn = qw.QPushButton(" Show Screenshots")
+        self.shot_toggle_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView))
         self.shot_toggle_btn.setCheckable(True)
         self.shot_toggle_btn.toggled.connect(self._toggle_screenshots)
         layout.addWidget(self.shot_toggle_btn)
@@ -302,7 +306,12 @@ class TimeTrackerApp(qw.QWidget):
 
     def _update_ui_state(self):
         tracking = self.active_activity is not None
-        self.toggle_btn.setText("Stop Tracking" if tracking else "Start Tracking")
+        self.toggle_btn.setText(" Stop Tracking" if tracking else " Start Tracking")
+        self.toggle_btn.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop)
+            if tracking
+            else self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
+        )
         self.project_input.setEnabled(not tracking)
         self.settings_btn.setEnabled(not tracking)
 
@@ -491,7 +500,7 @@ class TimeTrackerApp(qw.QWidget):
         visible = checked
         self.shot_label.setVisible(visible)
         self.shot_table.setVisible(visible)
-        self.shot_toggle_btn.setText("Hide Screenshots" if checked else "Show Screenshots")
+        self.shot_toggle_btn.setText(" Hide Screenshots" if checked else " Show Screenshots")
         if visible:
             self._load_screenshots()
 
