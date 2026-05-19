@@ -408,6 +408,9 @@ class TimeTrackerApp(qw.QWidget):
         }
 
         dialog = ActivityDialog(project_id, self, current_data=current_data)
+        dialog.setWindowFlags(
+            dialog.windowFlags() | Qt.WindowType.WindowStaysOnTopHint
+        )
         if dialog.exec() != qw.QDialog.DialogCode.Accepted:
             return
 
@@ -554,8 +557,19 @@ class TimeTrackerApp(qw.QWidget):
                 self._camshot_worker.finished.connect(self._camshot_worker.deleteLater)
                 self._camshot_worker.start()
 
+    def _play_capture_sound(self):
+        try:
+            subprocess.run(
+                ["afplay", "/System/Library/Sounds/Tink.aiff"],
+                capture_output=True, timeout=3,
+            )
+        except Exception:
+            pass
+
     def _on_screenshot_done(self, path):
         self._store_media(path, "screenshot")
+        if self._cfg("config", "other", "playSounds", default=False):
+            self._play_capture_sound()
         self._schedule_screenshot()
 
     def _on_camshot_done(self, path):
@@ -661,6 +675,14 @@ class TimeTrackerApp(qw.QWidget):
 
         self._update_dialog_open = True
         try:
+            self.activateWindow()
+            self.raise_()
+
+            if self.windowState() & Qt.WindowState.WindowMinimized:
+                self.setWindowState(
+                    self.windowState() & ~Qt.WindowState.WindowMinimized
+                )
+
             self._do_update_activity()
         finally:
             self._update_dialog_open = False
