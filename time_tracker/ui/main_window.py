@@ -632,10 +632,12 @@ class TimeTrackerApp(qw.QWidget):
             self._schedule_screenshot()
 
     def _cleanup_screenshot_worker(self):
+        self._screenshot_worker.wait()
         self._screenshot_worker.deleteLater()
         self._screenshot_worker = None
 
     def _cleanup_camshot_worker(self):
+        self._camshot_worker.wait()
         self._camshot_worker.deleteLater()
         self._camshot_worker = None
 
@@ -662,6 +664,7 @@ class TimeTrackerApp(qw.QWidget):
         self._lock_worker.start()
 
     def _cleanup_lock_worker(self):
+        self._lock_worker.wait()
         self._lock_worker.deleteLater()
         self._lock_worker = None
 
@@ -681,6 +684,7 @@ class TimeTrackerApp(qw.QWidget):
         self._sync_worker.start()
 
     def _cleanup_sync_worker(self):
+        self._sync_worker.wait()
         self._sync_worker.deleteLater()
         self._sync_worker = None
 
