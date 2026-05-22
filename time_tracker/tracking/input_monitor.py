@@ -49,8 +49,23 @@ class InputMonitor:
     def stop(self):
         self._running = False
         if self._proc:
-            self._proc.terminate()
+            try:
+                self._proc.terminate()
+                try:
+                    self._proc.wait(timeout=1.0)
+                except subprocess.TimeoutExpired:
+                    self._proc.kill()
+                    self._proc.wait()
+            except Exception as e:
+                logger.warning("Error stopping listener subprocess: %s", e)
             self._proc = None
+
+        if self._counts_file and os.path.exists(self._counts_file):
+            try:
+                os.remove(self._counts_file)
+            except Exception:
+                pass
+            self._counts_file = None
 
     # ---- idle ----
 

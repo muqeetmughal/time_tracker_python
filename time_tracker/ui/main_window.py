@@ -28,6 +28,15 @@ from time_tracker.utils.workers import (
 from time_tracker.utils.logger import logger
 
 
+def safe_is_running(worker):
+    if worker is None:
+        return False
+    try:
+        return worker.isRunning()
+    except RuntimeError:
+        return False
+
+
 THUMB_SIZE = 60
 
 
@@ -169,7 +178,7 @@ class TimeTrackerApp(qw.QWidget):
         worker.start()
 
     def _on_projects_loaded(self, projects):
-        self._api_workers = [w for w in self._api_workers if w.isRunning()]
+        self._api_workers = [w for w in self._api_workers if safe_is_running(w)]
         if not projects:
             logger.warning("No projects returned from API")
             return
@@ -224,20 +233,52 @@ class TimeTrackerApp(qw.QWidget):
                 self.active_activity = None
             self._stop_timers()
             self._cleanup_workers()
-            if self._lock_worker is not None and self._lock_worker.isRunning():
-                self._lock_worker.quit()
-                self._lock_worker.wait(3000)
+            
+            # Safely disconnect and terminate the lock check worker
+            if self._lock_worker is not None:
+                try:
+                    self._lock_worker.finished.disconnect()
+                except Exception:
+                    pass
+                try:
+                    self._lock_worker.locked.disconnect()
+                except Exception:
+                    pass
+                try:
+                    if safe_is_running(self._lock_worker):
+                        self._lock_worker.terminate()
+                        self._lock_worker.wait(1000)
+                except Exception:
+                    pass
             self._lock_worker = None
+
+            # Safely disconnect and terminate any active API workers
             for w in self._api_workers:
-                if w.isRunning():
-                    w.quit()
-                    w.wait(1000)
+                try:
+                    w.finished.disconnect()
+                except Exception:
+                    pass
+                try:
+                    if safe_is_running(w):
+                        w.terminate()
+                        w.wait(500)
+                except Exception:
+                    pass
             self._api_workers.clear()
+
             self.input_monitor.stop()
             self.db.close()
         except Exception as e:
             logger.error("Shutdown error: %s", e)
-        super().closeEvent(event)
+        
+        try:
+            super().closeEvent(event)
+        except Exception as e:
+            logger.error("Error calling super().closeEvent: %s", e)
+            try:
+                event.accept()
+            except Exception:
+                pass
 
     # ---- config helpers ----
 
@@ -275,9 +316,27 @@ class TimeTrackerApp(qw.QWidget):
         try:
             for attr in ["_screenshot_worker", "_camshot_worker", "_sync_worker"]:
                 w = getattr(self, attr, None)
-                if w is not None and w.isRunning():
-                    w.quit()
-                    w.wait(2000)
+                if w is not None:
+                    try:
+                        w.finished.disconnect()
+                    except Exception:
+                        pass
+                    try:
+                        if attr == "_sync_worker":
+                            w.progress.disconnect()
+                    except Exception:
+                        pass
+                    try:
+                        if safe_is_running(w):
+                            w.quit()
+                            w.wait(2000)
+                    except Exception:
+                        pass
+                    try:
+                        w.deleteLater()
+                    except Exception:
+                        pass
+                    setattr(self, attr, None)
         except Exception as e:
             logger.warning("Worker cleanup error: %s", e)
 
@@ -632,14 +691,46 @@ class TimeTrackerApp(qw.QWidget):
             self._schedule_screenshot()
 
     def _cleanup_screenshot_worker(self):
-        self._screenshot_worker.wait()
-        self._screenshot_worker.deleteLater()
-        self._screenshot_worker = None
+        try:
+            w = self._screenshot_worker
+            if w is not None:
+                try:
+                    w.finished.disconnect()
+                except Exception:
+                    pass
+                try:
+                    w.wait()
+                except Exception:
+                    pass
+                try:
+                    w.deleteLater()
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning("Error in screenshot worker cleanup: %s", e)
+        finally:
+            self._screenshot_worker = None
 
     def _cleanup_camshot_worker(self):
-        self._camshot_worker.wait()
-        self._camshot_worker.deleteLater()
-        self._camshot_worker = None
+        try:
+            w = self._camshot_worker
+            if w is not None:
+                try:
+                    w.finished.disconnect()
+                except Exception:
+                    pass
+                try:
+                    w.wait()
+                except Exception:
+                    pass
+                try:
+                    w.deleteLater()
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning("Error in camshot worker cleanup: %s", e)
+        finally:
+            self._camshot_worker = None
 
     # ---- screenshots toggle ----
 
@@ -664,9 +755,29 @@ class TimeTrackerApp(qw.QWidget):
         self._lock_worker.start()
 
     def _cleanup_lock_worker(self):
-        self._lock_worker.wait()
-        self._lock_worker.deleteLater()
-        self._lock_worker = None
+        try:
+            w = self._lock_worker
+            if w is not None:
+                try:
+                    w.finished.disconnect()
+                except Exception:
+                    pass
+                try:
+                    w.locked.disconnect()
+                except Exception:
+                    pass
+                try:
+                    w.wait()
+                except Exception:
+                    pass
+                try:
+                    w.deleteLater()
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning("Error in lock worker cleanup: %s", e)
+        finally:
+            self._lock_worker = None
 
     def _on_locked(self):
         logger.info("Screen lock detected — stopping timer")
@@ -684,9 +795,29 @@ class TimeTrackerApp(qw.QWidget):
         self._sync_worker.start()
 
     def _cleanup_sync_worker(self):
-        self._sync_worker.wait()
-        self._sync_worker.deleteLater()
-        self._sync_worker = None
+        try:
+            w = self._sync_worker
+            if w is not None:
+                try:
+                    w.finished.disconnect()
+                except Exception:
+                    pass
+                try:
+                    w.progress.disconnect()
+                except Exception:
+                    pass
+                try:
+                    w.wait()
+                except Exception:
+                    pass
+                try:
+                    w.deleteLater()
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning("Error in sync worker cleanup: %s", e)
+        finally:
+            self._sync_worker = None
 
     def _on_sync_done(self, synced_count):
         self.sync_status_label.setText("")
