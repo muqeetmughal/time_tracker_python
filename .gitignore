@@ -12,3 +12,6 @@ venv/
 logs/
 screenshots/
 shots/
+build/
+dist/
+*.app
