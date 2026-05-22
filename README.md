@@ -22,16 +22,15 @@ A robust, multi-threaded desktop time-tracking and productivity monitoring appli
    - **System Lock Detection**: Employs an AppleScript/osascript checker to automatically detect if the screensaver or system lock is active, helping prevent idle tracking during locks.
 
 4. **Robust Local Caching & Sync Queue**
-   - Full offline support backed by a local **SQLite database** (`time_tracker.db`) using **SQLAlchemy ORM**.
+   - Offline support backed by a local **SQLite database** (`time_tracker.db`) using **SQLAlchemy ORM**.
    - Sessions are cached locally and marked as `pending`. An asynchronous upload manager queue (`UploadWorker`) automatically pushes pending sessions and media chunks when an internet connection/ERP connection is established.
 
 5. **Fluid Multi-Threaded Architecture**
-   - The application employs a decoupled design using PyQt6 `QThread` workers to ensure the desktop GUI remains buttery-smooth and 100% responsive:
-     - `ScreenshotWorker`: Captures displays without freezing the interface.
-     - `CamshotWorker`: Asynchronously captures camera frames.
-     - `ApiWorker`: Runs arbitrary API calls off the main thread.
-     - `UploadWorker`: Manages sync states, payloads, and local database transactions in the background.
-     - `LockCheckWorker`: Monitors screensaver states.
+   - The application employs a decoupled design using PyQt6 `QThread` workers to ensure the desktop GUI remains buttery-smooth and 100% responsive.
+
+6. **🚀 Automated Multi-OS Release Pipeline**
+   - **GitHub Actions Workflow**: Auto-builds standalone executables using PyInstaller on three environments: Windows (`.zip` bundle), macOS (`.tar.gz` bundle), and Linux (`.tar.gz` bundle).
+   - **Draft-Free Auto Release**: Publishes native binaries automatically to GitHub Releases when triggered by version tags (e.g. `v*`) or manually from the Actions tab.
 
 ---
 
@@ -39,6 +38,9 @@ A robust, multi-threaded desktop time-tracking and productivity monitoring appli
 
 ```text
 erp_time_tracker_python/
+├── .github/                 # GitHub CI/CD Workflows
+│   └── workflows/
+│       └── release.yml      # Multi-OS PyInstaller compilation & Release pipeline
 ├── config.json              # Local configurations, server settings, and user choices
 ├── main.py                  # Application entry point: initializes settings, logs in, and loads the GUI
 ├── requirements.txt         # Project package dependencies
