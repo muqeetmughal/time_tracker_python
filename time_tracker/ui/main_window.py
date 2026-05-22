@@ -253,6 +253,7 @@ class TimeTrackerApp(qw.QWidget):
     # ---- timers ----
 
     def _start_timers(self):
+        self._last_tick_at = 0.0
         self.timer.start(1000)
         self._schedule_screenshot()
         self._schedule_activity_update()

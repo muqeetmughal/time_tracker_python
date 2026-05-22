@@ -23,9 +23,9 @@
     "trackingSources": {
       "countKeyboardHits": true,
       "countMouseClicks": true,
-      "screenshotsFrom": "primary",
-      "cameraId": "",
-      "cameraName": ""
+      "screenshotsFrom": "Main Display (Display 1)",
+      "cameraId": "0",
+      "cameraName": "FaceTime HD Camera (Built-in)"
     },
     "other": {
       "playSounds": true,
