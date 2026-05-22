@@ -3,13 +3,19 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from time_tracker.tracking.screenshot import capture as capture_screenshot
 from time_tracker.tracking.camshot import capture as capture_camshot, list_cameras
 from time_tracker.database import SessionLocal
-from time_tracker.models import Activity
+from time_tracker.models import Activity, ActivityMedia
 from time_tracker.utils.logger import logger
 
 
 def mock_upload_activity(activity):
     """Mock upload to ERPNext — always succeeds."""
     logger.info("Mock upload: activity %s synced successfully", activity.id)
+    return True
+
+
+def mock_upload_media(media):
+    """Mock upload media to ERPNext — always succeeds."""
+    logger.info("Mock upload: media %s synced successfully", media.id)
     return True
 
 
@@ -51,24 +57,44 @@ class ApiWorker(QThread):
 class UploadWorker(QThread):
     finished = pyqtSignal(int)
 
-    def __init__(self, upload_fn=None):
+    def __init__(self, upload_activity_fn=None, upload_media_fn=None):
         super().__init__()
-        self._upload_fn = upload_fn or mock_upload_activity
+        self._upload_activity_fn = upload_activity_fn or mock_upload_activity
+        self._upload_media_fn = upload_media_fn or mock_upload_media
 
     def run(self):
         db = SessionLocal()
         synced_count = 0
         try:
-            pending = (
+            pending_activities = (
                 db.query(Activity)
                 .filter(Activity.sync_status == "pending")
                 .all()
             )
 
-            for activity in pending:
+            for activity in pending_activities:
                 try:
-                    ok = self._upload_fn(activity)
+                    ok = self._upload_activity_fn(activity)
                     if ok:
+                        pending_media = (
+                            db.query(ActivityMedia)
+                            .filter(
+                                ActivityMedia.activity_id == activity.id,
+                                ActivityMedia.sync_status == "pending",
+                            )
+                            .all()
+                        )
+                        for media in pending_media:
+                            try:
+                                if self._upload_media_fn(media):
+                                    media.sync_status = "synced"
+                                    synced_count += 1
+                            except Exception as e:
+                                logger.error(
+                                    "UploadWorker: failed to sync media %s: %s",
+                                    media.id, e,
+                                )
+
                         activity.sync_status = "synced"
                         synced_count += 1
                 except Exception as e:

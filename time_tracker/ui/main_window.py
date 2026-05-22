@@ -134,8 +134,8 @@ class TimeTrackerApp(qw.QWidget):
 
         self.shot_label = qw.QLabel("Screenshots")
         self.shot_table = qw.QTableWidget()
-        self.shot_table.setColumnCount(4)
-        self.shot_table.setHorizontalHeaderLabels(["Preview", "Filename", "Size", "Status"])
+        self.shot_table.setColumnCount(5)
+        self.shot_table.setHorizontalHeaderLabels(["Preview", "Filename", "Size", "Status", "Sync"])
         self.shot_table.setEditTriggers(qw.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.shot_table.verticalHeader().setDefaultSectionSize(THUMB_SIZE + 8)
 
@@ -505,6 +505,7 @@ class TimeTrackerApp(qw.QWidget):
             file_size=len(file_data) if file_data else 0,
             file_path=path,
             status="approved",
+            sync_status="pending",
         )
         self.db.add(media)
         self.db.commit()
@@ -591,10 +592,6 @@ class TimeTrackerApp(qw.QWidget):
     # ---- sync (upload to ERPNext) ----
 
     def _on_sync_timer(self):
-        if self.active_activity:
-            self._schedule_sync()
-            return
-
         self._sync_worker = UploadWorker(upload_fn=mock_upload_activity)
         self._sync_worker.finished.connect(self._on_sync_done)
         self._sync_worker.finished.connect(self._sync_worker.deleteLater)
@@ -602,8 +599,9 @@ class TimeTrackerApp(qw.QWidget):
 
     def _on_sync_done(self, synced_count):
         if synced_count > 0:
-            logger.info("Synced %d activities", synced_count)
+            logger.info("Synced %d items", synced_count)
             self._load_activities()
+            self._load_screenshots()
         self._schedule_sync()
 
     # ---- screenshots grid ----
@@ -656,6 +654,14 @@ class TimeTrackerApp(qw.QWidget):
                 elif m.status == "pending":
                     status_item.setForeground(QColor(200, 200, 80))
                 self.shot_table.setItem(row, 3, status_item)
+
+                # sync status
+                sync_item = qw.QTableWidgetItem(m.sync_status or "pending")
+                if m.sync_status == "synced":
+                    sync_item.setForeground(QColor(100, 200, 100))
+                elif m.sync_status != "synced":
+                    sync_item.setForeground(QColor(200, 200, 80))
+                self.shot_table.setItem(row, 4, sync_item)
 
             self.shot_table.resizeColumnsToContents()
             self.shot_table.setColumnWidth(0, THUMB_SIZE + 12)

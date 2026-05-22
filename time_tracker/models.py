@@ -72,6 +72,7 @@ class ActivityMedia(Base):
     file_size = Column(Integer, nullable=True)
     file_path = Column(String, nullable=True)
     status = Column(String, nullable=False, default="pending")
+    sync_status = Column(String, nullable=False, default="pending")
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
 
     activity = relationship("Activity", back_populates="media_items")
@@ -79,6 +80,7 @@ class ActivityMedia(Base):
     __table_args__ = (
         Index("idx_media_activity", "activity_id"),
         Index("idx_media_status", "status"),
+        Index("idx_media_sync_status", "sync_status"),
     )
 
 
