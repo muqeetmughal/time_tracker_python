@@ -197,3 +197,20 @@ class CamshotWorker(QThread):
         except Exception as e:
             logger.error("CamshotWorker error: %s", e)
             self.finished.emit(None)
+
+
+class LockCheckWorker(QThread):
+    locked = pyqtSignal()
+
+    def run(self):
+        try:
+            import subprocess
+            r = subprocess.run(
+                ["osascript", "-e",
+                 'tell application "System Events" to get exists of process "ScreenSaverEngine"'],
+                capture_output=True, text=True, timeout=3,
+            )
+            if r.stdout.strip() == "true":
+                self.locked.emit()
+        except Exception:
+            pass

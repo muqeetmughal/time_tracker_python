@@ -23,6 +23,7 @@ from time_tracker.utils.workers import (
     CamshotWorker,
     ApiWorker,
     UploadWorker,
+    LockCheckWorker,
 )
 from time_tracker.utils.logger import logger
 
@@ -43,6 +44,7 @@ class TimeTrackerApp(qw.QWidget):
         self._screenshot_worker = None
         self._camshot_worker = None
         self._sync_worker = None
+        self._lock_worker = None
         self._api_workers = []
         self._last_tick_at = 0.0
 
@@ -267,13 +269,14 @@ class TimeTrackerApp(qw.QWidget):
 
     def _cleanup_workers(self):
         try:
-            for w in [self._screenshot_worker, self._camshot_worker, self._sync_worker]:
+            for w in [self._screenshot_worker, self._camshot_worker, self._sync_worker, self._lock_worker]:
                 if w is not None and w.isRunning():
                     w.quit()
                     w.wait(2000)
             self._screenshot_worker = None
             self._camshot_worker = None
             self._sync_worker = None
+            self._lock_worker = None
         except Exception as e:
             logger.warning("Worker cleanup error: %s", e)
 
@@ -644,17 +647,14 @@ class TimeTrackerApp(qw.QWidget):
     def _check_screen_lock(self):
         if not self.active_activity or self._paused:
             return
-        try:
-            r = subprocess.run(
-                ["osascript", "-e",
-                 'tell application "System Events" to get exists of process "ScreenSaverEngine"'],
-                capture_output=True, text=True, timeout=3,
-            )
-            if r.stdout.strip() == "true":
-                logger.info("Screen lock detected — stopping timer")
-                self._stop_tracking()
-        except Exception as e:
-            logger.debug("Screen lock check error: %s", e)
+        self._lock_worker = LockCheckWorker()
+        self._lock_worker.locked.connect(self._on_locked)
+        self._lock_worker.finished.connect(self._lock_worker.deleteLater)
+        self._lock_worker.start()
+
+    def _on_locked(self):
+        logger.info("Screen lock detected — stopping timer")
+        self._stop_tracking()
 
     # ---- sync (upload to ERPNext) ----
 
