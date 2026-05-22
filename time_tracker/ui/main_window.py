@@ -682,7 +682,9 @@ class TimeTrackerApp(qw.QWidget):
             logger.info("Synced %d items", synced_count)
             self._load_activities()
             self._load_screenshots()
-        self._schedule_sync()
+            QTimer.singleShot(500, self._on_sync_timer)
+        else:
+            self._schedule_sync()
 
     # ---- screenshots grid ----
 
@@ -780,7 +782,7 @@ class TimeTrackerApp(qw.QWidget):
         try:
             activities = (
                 self.db.query(Activity)
-                .filter(Activity.sync_status != "synced")
+                .filter(Activity.sync_status.in_(["pending", "failed"]))
                 .order_by(Activity.start_time.asc())
                 .all()
             )
@@ -803,7 +805,16 @@ class TimeTrackerApp(qw.QWidget):
                     activity.sync_status,
                 ]
                 for col, value in enumerate(values):
-                    self.table.setItem(row, col, qw.QTableWidgetItem(value))
+                    item = qw.QTableWidgetItem(value)
+                    if col == 10 and activity.sync_status == "failed":
+                        item.setForeground(QColor(200, 80, 80))
+                        if activity.sync_error:
+                            item.setToolTip(activity.sync_error)
+                    elif col == 10 and activity.sync_status == "pending":
+                        item.setForeground(QColor(200, 200, 80))
+                    elif col == 10 and activity.sync_status == "synced":
+                        item.setForeground(QColor(100, 200, 100))
+                    self.table.setItem(row, col, item)
         except Exception as e:
             logger.error("Failed to load activities: %s", e)
 

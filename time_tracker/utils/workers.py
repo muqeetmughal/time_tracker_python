@@ -131,17 +131,19 @@ class UploadWorker(QThread):
             pending_activity = (
                 db.query(Activity)
                 .filter(
-                    Activity.sync_status == "pending",
+                    Activity.sync_status.in_(["pending", "failed"]),
                     Activity.status != "active",
+                )
+                .order_by(
+                    Activity.sync_status == "pending",
                 )
                 .order_by(Activity.end_time.asc().nullsfirst())
                 .first()
             )
 
             if pending_activity is not None:
-                self.progress.emit(
-                    f"Uploading: {pending_activity.description or pending_activity.id}"
-                )
+                desc = pending_activity.description or pending_activity.id
+                self.progress.emit(f"Uploading: {desc}")
                 try:
                     ok = self._upload_activity_fn(pending_activity)
                     if ok:
@@ -165,8 +167,12 @@ class UploadWorker(QThread):
                                 )
 
                         pending_activity.sync_status = "synced"
+                        pending_activity.sync_error = None
                         synced_count += 1
+                        logger.info("Activity %s synced successfully", pending_activity.id)
                 except Exception as e:
+                    pending_activity.sync_status = "failed"
+                    pending_activity.sync_error = str(e)[:1000]
                     logger.error(
                         "UploadWorker: failed to sync activity %s: %s",
                         pending_activity.id, e,

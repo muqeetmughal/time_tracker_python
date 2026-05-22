@@ -39,6 +39,7 @@ class Activity(Base):
 
     status = Column(String, nullable=False, default="active")
     sync_status = Column(String, nullable=False, default="pending")
+    sync_error = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
