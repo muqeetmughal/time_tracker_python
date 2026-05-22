@@ -224,6 +224,10 @@ class TimeTrackerApp(qw.QWidget):
                 self.active_activity = None
             self._stop_timers()
             self._cleanup_workers()
+            if self._lock_worker is not None and self._lock_worker.isRunning():
+                self._lock_worker.quit()
+                self._lock_worker.wait(3000)
+            self._lock_worker = None
             for w in self._api_workers:
                 if w.isRunning():
                     w.quit()
@@ -269,14 +273,11 @@ class TimeTrackerApp(qw.QWidget):
 
     def _cleanup_workers(self):
         try:
-            for w in [self._screenshot_worker, self._camshot_worker, self._sync_worker, self._lock_worker]:
+            for attr in ["_screenshot_worker", "_camshot_worker", "_sync_worker"]:
+                w = getattr(self, attr, None)
                 if w is not None and w.isRunning():
                     w.quit()
                     w.wait(2000)
-            self._screenshot_worker = None
-            self._camshot_worker = None
-            self._sync_worker = None
-            self._lock_worker = None
         except Exception as e:
             logger.warning("Worker cleanup error: %s", e)
 
@@ -619,14 +620,12 @@ class TimeTrackerApp(qw.QWidget):
             pass
 
     def _on_screenshot_done(self, path):
-        self._screenshot_worker = None
         self._store_media(path, "screenshot")
         if self._cfg("config", "other", "playSounds", default=False):
             self._play_capture_sound()
         self._schedule_screenshot()
 
     def _on_camshot_done(self, path):
-        self._camshot_worker = None
         self._store_media(path, "camshot")
         cfg = self._cfg("config", "general", default={})
         if not cfg.get("takeScreenshots", False):
@@ -647,10 +646,16 @@ class TimeTrackerApp(qw.QWidget):
     def _check_screen_lock(self):
         if not self.active_activity or self._paused:
             return
+        if self._lock_worker is not None and self._lock_worker.isRunning():
+            return
         self._lock_worker = LockCheckWorker()
         self._lock_worker.locked.connect(self._on_locked)
-        self._lock_worker.finished.connect(self._lock_worker.deleteLater)
+        self._lock_worker.finished.connect(self._cleanup_lock_worker)
         self._lock_worker.start()
+
+    def _cleanup_lock_worker(self):
+        self._lock_worker.deleteLater()
+        self._lock_worker = None
 
     def _on_locked(self):
         logger.info("Screen lock detected — stopping timer")
@@ -663,13 +668,16 @@ class TimeTrackerApp(qw.QWidget):
             return
         self._sync_worker = UploadWorker()
         self._sync_worker.finished.connect(self._on_sync_done)
-        self._sync_worker.finished.connect(self._sync_worker.deleteLater)
+        self._sync_worker.finished.connect(self._cleanup_sync_worker)
         self._sync_worker.progress.connect(self.sync_status_label.setText)
         self._sync_worker.start()
 
+    def _cleanup_sync_worker(self):
+        self._sync_worker.deleteLater()
+        self._sync_worker = None
+
     def _on_sync_done(self, synced_count):
         self.sync_status_label.setText("")
-        self._sync_worker = None
         if synced_count > 0:
             logger.info("Synced %d items", synced_count)
             self._load_activities()
