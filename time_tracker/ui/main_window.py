@@ -21,7 +21,6 @@ from time_tracker.utils.workers import (
     CamshotWorker,
     ApiWorker,
     UploadWorker,
-    mock_upload_activity,
 )
 from time_tracker.utils.logger import logger
 
@@ -99,6 +98,10 @@ class TimeTrackerApp(qw.QWidget):
         self.logout_btn.setToolTip("Logout (clear API credentials)")
         self.logout_btn.clicked.connect(self._logout)
         header.addWidget(self.logout_btn)
+
+        self.sync_status_label = qw.QLabel("")
+        self.sync_status_label.setStyleSheet("font-size: 11px; color: gray;")
+        header.addWidget(self.sync_status_label)
 
         layout.addLayout(header)
 
@@ -592,12 +595,14 @@ class TimeTrackerApp(qw.QWidget):
     # ---- sync (upload to ERPNext) ----
 
     def _on_sync_timer(self):
-        self._sync_worker = UploadWorker(upload_fn=mock_upload_activity)
+        self._sync_worker = UploadWorker()
         self._sync_worker.finished.connect(self._on_sync_done)
         self._sync_worker.finished.connect(self._sync_worker.deleteLater)
+        self._sync_worker.progress.connect(self.sync_status_label.setText)
         self._sync_worker.start()
 
     def _on_sync_done(self, synced_count):
+        self.sync_status_label.setText("")
         if synced_count > 0:
             logger.info("Synced %d items", synced_count)
             self._load_activities()
