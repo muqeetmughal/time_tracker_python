@@ -596,7 +596,7 @@ class TimeTrackerApp(qw.QWidget):
                 self._screenshot_worker.wait(2000)
             self._screenshot_worker = ScreenshotWorker(activity.id, display=display_num)
             self._screenshot_worker.finished.connect(self._on_screenshot_done)
-            self._screenshot_worker.finished.connect(self._screenshot_worker.deleteLater)
+            self._screenshot_worker.finished.connect(self._cleanup_screenshot_worker)
             self._screenshot_worker.start()
 
         if take_camshots:
@@ -607,7 +607,7 @@ class TimeTrackerApp(qw.QWidget):
                     self._camshot_worker.wait(2000)
                 self._camshot_worker = CamshotWorker(activity.id, int(cam_idx))
                 self._camshot_worker.finished.connect(self._on_camshot_done)
-                self._camshot_worker.finished.connect(self._camshot_worker.deleteLater)
+                self._camshot_worker.finished.connect(self._cleanup_camshot_worker)
                 self._camshot_worker.start()
 
     def _play_capture_sound(self):
@@ -630,6 +630,14 @@ class TimeTrackerApp(qw.QWidget):
         cfg = self._cfg("config", "general", default={})
         if not cfg.get("takeScreenshots", False):
             self._schedule_screenshot()
+
+    def _cleanup_screenshot_worker(self):
+        self._screenshot_worker.deleteLater()
+        self._screenshot_worker = None
+
+    def _cleanup_camshot_worker(self):
+        self._camshot_worker.deleteLater()
+        self._camshot_worker = None
 
     # ---- screenshots toggle ----
 
