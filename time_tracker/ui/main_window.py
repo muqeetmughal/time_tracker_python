@@ -169,7 +169,7 @@ class TimeTrackerApp(qw.QWidget):
         worker.start()
 
     def _on_projects_loaded(self, projects):
-        self._api_workers = [w for w in self._api_workers if not w.isFinished()]
+        self._api_workers = [w for w in self._api_workers if w.isRunning()]
         if not projects:
             logger.warning("No projects returned from API")
             return
